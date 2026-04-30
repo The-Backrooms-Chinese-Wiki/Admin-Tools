@@ -25,18 +25,18 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/audit')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((json) => {
-        if (json.error) throw new Error(json.error);
-        setData(json);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  fetch('/api/audit', { cache: 'no-store' })  // 添加这个选项
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((json) => {
+      if (json.error) throw new Error(json.error);
+      setData(json);
+    })
+    .catch((err) => setError(err.message))
+    .finally(() => setLoading(false));
+}, []);
 
   if (loading) {
     return (
