@@ -185,11 +185,18 @@ export async function GET() {
       return mainTitle && !mainTitles.has(mainTitle);
     });
 
-    return NextResponse.json({
-      unreviewed,
-      failed: failedPages,
-      orphanedStatus,
-    } satisfies AuditResult);
+    return NextResponse.json(
+      {
+        unreviewed,
+        failed: failedPages,
+        orphanedStatus,
+      } satisfies AuditResult,
+      {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        },
+      }
+    );
   } catch (err: any) {
     console.error(err);
     return NextResponse.json({ error: err.message || '未知错误' }, { status: 500 });
