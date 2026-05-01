@@ -1,0 +1,6 @@
+{
+  "crons": [{
+    "path": "/app/api/audit",
+    "schedule": "0 10 * * *"
+  }]
+}
