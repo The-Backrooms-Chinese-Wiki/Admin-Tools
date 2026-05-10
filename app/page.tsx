@@ -100,7 +100,7 @@ export default function Home() {
             href="https://backroomszh.org"
             className="text-blue-600 hover:underline font-medium"
           >
-            ← 返回主页
+            返回主页
           </a>
         </nav>
       </header>
