@@ -10,7 +10,9 @@ interface PageInfo {
 interface FailedPageInfo {
   pageid: number;
   title: string;
-  timestamp: string;
+  mainTitle: string;
+  statusTimestamp: string;
+  mainTimestamp: string | null;
 }
 
 interface AuditData {
@@ -25,18 +27,32 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-  fetch('/api/audit', { cache: 'no-store' })  // 添加这个选项
-    .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    })
-    .then((json) => {
-      if (json.error) throw new Error(json.error);
-      setData(json);
-    })
-    .catch((err) => setError(err.message))
-    .finally(() => setLoading(false));
-}, []);
+    fetch('/api/audit', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((json) => {
+        if (json.error) throw new Error(json.error);
+        setData(json);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // 辅助函数：判断未过审页面的操作状态
+  const getActionStatus = (item: FailedPageInfo): '需要操作' | '等待修改' => {
+    const now = Date.now();
+    const mainEdited = item.mainTimestamp ? new Date(item.mainTimestamp).getTime() : 0;
+    const statusTime = new Date(item.statusTimestamp).getTime();
+    const diffDays = (now - statusTime) / (1000 * 60 * 60 * 24);
+
+    // 如果主文章最后编辑时间早于审核时间，且已超过 15 天，则需要操作
+    if (mainEdited < statusTime && diffDays > 15) {
+      return '需要操作';
+    }
+    return '等待修改';
+  };
 
   if (loading) {
     return (
@@ -76,7 +92,7 @@ export default function Home() {
             <strong className="text-red-700">15天时间之内</strong>
             ，若发现仍然未经过任何改正，则会被从主命名空间页面移动回作者的沙盒。
             再次重申一遍，请审核们不要直接对质量不达标的文章进行删除，而是在其审核状态被设定为“不通过”且一直未经改正的
-            <strong className="text-red-700">15天之后</strong>，再将其移动回作者的沙盒。
+            <strong className="text-red-700">15天之后</strong>，再将其移动回作者的沙盒。（这些文章用“需要操作”标记进行了标注）
           </p>
         </div>
         <nav className="mt-4">
@@ -84,7 +100,7 @@ export default function Home() {
             href="https://backroomszh.org"
             className="text-blue-600 hover:underline font-medium"
           >
-            返回主页
+            ← 返回主页
           </a>
         </nav>
       </header>
@@ -161,44 +177,68 @@ export default function Home() {
                   <th className="text-left p-3 border">主页面</th>
                   <th className="text-left p-3 border">Status 页面</th>
                   <th className="text-left p-3 border">审核时间</th>
+                  <th className="text-left p-3 border">状态</th>
                   <th className="text-left p-3 border">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {data.failed.map((page) => (
-                  <tr key={page.pageid} className="hover:bg-gray-50">
-                    <td className="p-3 border">
-                      <a
-                        href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title.replace(/^Status:/, ''))}`}
-                        target="_blank"
-                        className="text-blue-600 hover:underline"
-                      >
-                        {page.title.replace(/^Status:/, '')}
-                      </a>
-                    </td>
-                    <td className="p-3 border">
-                      <a
-                        href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}`}
-                        target="_blank"
-                        className="text-purple-600 hover:underline"
-                      >
-                        {page.title}
-                      </a>
-                    </td>
-                    <td className="p-3 border text-sm text-gray-600">
-                      {new Date(page.timestamp).toLocaleString('zh-CN')}
-                    </td>
-                    <td className="p-3 border">
-                      <a
-                        href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}?action=delete`}
-                        target="_blank"
-                        className="text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
-                      >
-                        删除
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                {data.failed.map((page) => {
+                  const actionStatus = getActionStatus(page);
+                  return (
+                    <tr key={page.pageid} className="hover:bg-gray-50">
+                      <td className="p-3 border">
+                        <a
+                          href={`https://wiki.backroomszh.org/${encodeURIComponent(page.mainTitle)}`}
+                          target="_blank"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {page.mainTitle}
+                        </a>
+                      </td>
+                      <td className="p-3 border">
+                        <a
+                          href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}`}
+                          target="_blank"
+                          className="text-purple-600 hover:underline"
+                        >
+                          {page.title}
+                        </a>
+                      </td>
+                      <td className="p-3 border text-sm text-gray-600">
+                        {new Date(page.statusTimestamp).toLocaleString('zh-CN')}
+                      </td>
+                      <td className="p-3 border">
+                        {actionStatus === '需要操作' ? (
+                          <span className="text-white bg-red-600 px-2 py-0.5 rounded text-sm font-bold">
+                            需要操作
+                          </span>
+                        ) : (
+                          <span className="text-orange-700 bg-orange-50 px-2 py-0.5 rounded text-sm">
+                            等待修改
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 border">
+                        <div className="flex items-center space-x-2">
+                          <a
+                            href={`https://wiki.backroomszh.org/${encodeURIComponent(page.mainTitle)}?action=delete`}
+                            target="_blank"
+                            className="text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
+                          >
+                            删除
+                          </a>
+                          <a
+                            href={`https://wiki.backroomszh.org/Special:MovePage/${encodeURIComponent(page.mainTitle)}`}
+                            target="_blank"
+                            className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm"
+                          >
+                            移动
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
