@@ -130,7 +130,7 @@ export default function Home() {
                   <tr key={page.pageid} className="hover:bg-gray-50">
                     <td className="p-3 border">
                       <a
-                        href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}`}
+                        href={`https://backroomszh.miraheze.org/${encodeURIComponent(page.title)}`}
                         target="_blank"
                         className="text-blue-600 hover:underline"
                       >
@@ -139,7 +139,7 @@ export default function Home() {
                     </td>
                     <td className="p-3 border">
                       <a
-                        href={`https://wiki.backroomszh.org/Status:${encodeURIComponent(page.title)}`}
+                        href={`https://backroomszh.miraheze.org/Status:${encodeURIComponent(page.title)}`}
                         target="_blank"
                         className="text-purple-600 hover:underline"
                       >
@@ -188,7 +188,7 @@ export default function Home() {
                     <tr key={page.pageid} className="hover:bg-gray-50">
                       <td className="p-3 border">
                         <a
-                          href={`https://wiki.backroomszh.org/${encodeURIComponent(page.mainTitle)}`}
+                          href={`https://backroomszh.miraheze.org/${encodeURIComponent(page.mainTitle)}`}
                           target="_blank"
                           className="text-blue-600 hover:underline"
                         >
@@ -197,7 +197,7 @@ export default function Home() {
                       </td>
                       <td className="p-3 border">
                         <a
-                          href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}`}
+                          href={`https://backroomszh.miraheze.org/${encodeURIComponent(page.title)}`}
                           target="_blank"
                           className="text-purple-600 hover:underline"
                         >
@@ -221,14 +221,14 @@ export default function Home() {
                       <td className="p-3 border">
                         <div className="flex items-center space-x-2">
                           <a
-                            href={`https://wiki.backroomszh.org/${encodeURIComponent(page.mainTitle)}?action=delete`}
+                            href={`https://backroomszh.miraheze.org/${encodeURIComponent(page.mainTitle)}?action=delete`}
                             target="_blank"
                             className="text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
                           >
                             删除
                           </a>
                           <a
-                            href={`https://wiki.backroomszh.org/Special:MovePage/${encodeURIComponent(page.mainTitle)}`}
+                            href={`https://backroomszh.miraheze.org/Special:MovePage/${encodeURIComponent(page.mainTitle)}`}
                             target="_blank"
                             className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm"
                           >
@@ -270,7 +270,7 @@ export default function Home() {
                   <tr key={page.pageid} className="hover:bg-gray-50">
                     <td className="p-3 border">
                       <a
-                        href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}`}
+                        href={`https://backroomszh.miraheze.org/${encodeURIComponent(page.title)}`}
                         target="_blank"
                         className="text-purple-600 hover:underline"
                       >
