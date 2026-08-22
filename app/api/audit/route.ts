@@ -16,18 +16,10 @@ interface FailedPageInfo {
   mainTimestamp: string | null; // 主文章最后编辑时间，可能为 null
 }
 
-interface PendingPageInfo {
-  pageid: number;
-  title: string;             // Status 页面标题
-  mainTitle: string;        // 主文章标题
-  statusTimestamp: string;  // Status 页面最后修改时间
-}
-
 interface AuditResult {
   unreviewed: PageInfo[];
   failed: FailedPageInfo[];
   orphanedStatus: PageInfo[];
-  pending: PendingPageInfo[];
 }
 
 const API_BASE = 'https://mirror.backroomszh.org/w/api.php';
@@ -67,7 +59,7 @@ async function fetchAllNonRedirectPages(namespace: number): Promise<PageInfo[]> 
   return pages;
 }
 
-// 2. 从页面列表中排除重定向
+// 2. 从页面列表中排除重定向（用于 Status 命名空间）
 async function filterOutRedirects(pages: PageInfo[]): Promise<PageInfo[]> {
   if (pages.length === 0) return [];
 
@@ -110,6 +102,7 @@ async function filterOutRedirects(pages: PageInfo[]): Promise<PageInfo[]> {
 
 // 3. 获取未过审页面（含主文章最后编辑时间）
 async function fetchFailedPages(): Promise<FailedPageInfo[]> {
+  // 第一步：获取所有属于 Category:未过审页面 的 Status 页面及其最后修改时间
   const rawFailed: { pageid: number; title: string; timestamp: string }[] = [];
   let gcmcontinue: string | null = null;
 
@@ -149,6 +142,7 @@ async function fetchFailedPages(): Promise<FailedPageInfo[]> {
 
   if (rawFailed.length === 0) return [];
 
+  // 第二步：提取主文章标题列表，批量查询主文章的最后编辑时间
   const mainTitles = rawFailed.map(item => item.title.replace(/^Status:/, ''));
   const mainTimestamps = new Map<string, string | null>();
 
@@ -179,6 +173,7 @@ async function fetchFailedPages(): Promise<FailedPageInfo[]> {
     }
   }
 
+  // 第三步：组装最终数据
   const failed: FailedPageInfo[] = rawFailed.map(item => {
     const mainTitle = item.title.replace(/^Status:/, '');
     return {
@@ -191,49 +186,6 @@ async function fetchFailedPages(): Promise<FailedPageInfo[]> {
   });
 
   return failed;
-}
-
-// 4. 获取需要进一步审核的页面（Status 页面包含 {{Pending}} 模板）
-async function fetchPendingPages(): Promise<PendingPageInfo[]> {
-  let pending: PendingPageInfo[] = [];
-  let geicontinue: string | null = null;
-
-  do {
-    const params = new URLSearchParams({
-      action: 'query',
-      generator: 'embeddedin',
-      geititle: 'Template:Pending',
-      geinamespace: String(STATUS_NS),
-      prop: 'info|revisions',
-      rvprop: 'timestamp',
-      format: 'json',
-      maxage: '0',
-      smaxage: '0',
-    });
-    if (geicontinue) params.append('geicontinue', geicontinue);
-
-    const res = await fetch(`${API_BASE}?${params.toString()}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) throw new Error(`Pending 页面查询失败: ${res.status}`);
-    const data = await res.json();
-
-    if (data.query?.pages) {
-      for (const [, page] of Object.entries(data.query.pages) as any) {
-        if (page.redirect === undefined && page.title.startsWith('Status:')) {
-          pending.push({
-            pageid: page.pageid,
-            title: page.title,
-            mainTitle: page.title.slice(7),
-            statusTimestamp: page.revisions?.[0]?.timestamp ?? '',
-          });
-        }
-      }
-    }
-    geicontinue = data.continue?.geicontinue ?? null;
-  } while (geicontinue);
-
-  return pending;
 }
 
 // 主 API 处理函数
@@ -268,12 +220,7 @@ export async function GET() {
     } while (apcontinue);
 
     const statusPages = await filterOutRedirects(statusPagesAll);
-
-    // 并发获取未过审和待进一步审核的页面
-    const [failedPages, pendingPages] = await Promise.all([
-      fetchFailedPages(),
-      fetchPendingPages(),
-    ]);
+    const failedPages = await fetchFailedPages();
 
     const mainTitles = new Set(mainPages.map(p => p.title));
     const statusTitleToMain = new Map<string, string>();
@@ -296,7 +243,6 @@ export async function GET() {
         unreviewed,
         failed: failedPages,
         orphanedStatus,
-        pending: pendingPages,
       } satisfies AuditResult,
       {
         headers: {
