@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '审核管理面板',
-  description: 'MediaWiki 内容审核工具',
+  title: '后室中文数据库审核管理面板',
+  description: '后室中文数据库内部内容审核工具',
 };
 
 export default function RootLayout({
