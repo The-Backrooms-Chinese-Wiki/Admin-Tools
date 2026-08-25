@@ -20,7 +20,7 @@ interface PendingPageInfo {
   title: string;
   mainTitle: string;
   statusTimestamp: string;
-  note: string;  // 新增 note 字段
+  note: string;
 }
 
 interface AuditData {
@@ -356,6 +356,7 @@ export default function Home() {
                   <th className="text-left p-3 border">Status 页面</th>
                   <th className="text-left p-3 border">原属主页面</th>
                   <th className="text-left p-3 border">状态</th>
+                  <th className="text-left p-3 border">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -377,6 +378,15 @@ export default function Home() {
                       <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-sm">
                         孤立
                       </span>
+                    </td>
+                    <td className="p-3 border">
+                      <a
+                        href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}?action=delete`}
+                        target="_blank"
+                        className="text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
+                      >
+                        删除
+                      </a>
                     </td>
                   </tr>
                 ))}
