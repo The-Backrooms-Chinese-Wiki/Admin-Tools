@@ -25,6 +25,7 @@ interface PendingPageInfo {
 
 interface AuditData {
   unreviewed: PageInfo[];
+  unreviewedRedirects: PageInfo[];
   failed: FailedPageInfo[];
   orphanedStatus: PageInfo[];
   pending: PendingPageInfo[];
@@ -49,10 +50,13 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 判断未过审页面的操作状态
-  const getActionStatus = (item: FailedPageInfo): '需要删除' | '需要重审' | '立即重审' | '等待修改' => {
+  const getActionStatus = (
+    item: FailedPageInfo
+  ): '需要删除' | '需要重审' | '立即重审' | '等待修改' => {
     const now = Date.now();
-    const mainEdited = item.mainTimestamp ? new Date(item.mainTimestamp).getTime() : 0;
+    const mainEdited = item.mainTimestamp
+      ? new Date(item.mainTimestamp).getTime()
+      : 0;
     const statusTime = new Date(item.statusTimestamp).getTime();
     const diffDays = (now - statusTime) / (1000 * 60 * 60 * 24);
 
@@ -65,19 +69,34 @@ export default function Home() {
     return '立即重审';
   };
 
-  // 根据 note 值返回标签
   const getNoteLabel = (note: string) => {
     const normalized = note.trim().toLowerCase();
     if (normalized === 'pass') {
-      return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-sm">偏向Pass</span>;
+      return (
+        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-sm">
+          偏向Pass
+        </span>
+      );
     }
     if (normalized === 'fail') {
-      return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-sm">偏向Fail</span>;
+      return (
+        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-sm">
+          偏向Fail
+        </span>
+      );
     }
     if (!note) {
-      return <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-sm">暂无偏向</span>;
+      return (
+        <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-sm">
+          暂无偏向
+        </span>
+      );
     }
-    return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-sm">有其他备注</span>;
+    return (
+      <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-sm">
+        有其他备注
+      </span>
+    );
   };
 
   if (loading) {
@@ -103,7 +122,11 @@ export default function Home() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* 顶部 LOGO 与审核规则 */}
       <header className="text-center mb-12">
-        <a href="https://backroomszh.org" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://backroomszh.org"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <img
             src="https://static.miraheze.org/backroomszhwiki/1/16/SiteLogo.png"
             alt="Site Logo"
@@ -112,7 +135,9 @@ export default function Home() {
         </a>
         <h1 className="text-3xl font-bold mb-6">审核管理面板</h1>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-left max-w-4xl mx-auto">
-          <h2 className="text-xl font-semibold text-amber-800 mb-3">审核与删除要求</h2>
+          <h2 className="text-xl font-semibold text-amber-800 mb-3">
+            审核与删除要求
+          </h2>
           <p className="text-amber-900 leading-relaxed">
             被标注Fail的文章将从被标注的日期开始算起，若15天内无修改，则可以由站务组在15天以后直接删除。若15天内有修改却没有使其达到通过审核的标准，则延期至30天。只要删除以前进行的修改使文章达到了Pass的标准，审核者则应该将其状态更换为Pass。在删除文章的时候，删除者应当对文章进行复审，以免误删。
           </p>
@@ -162,6 +187,62 @@ export default function Home() {
                         href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}`}
                         target="_blank"
                         className="text-blue-600 hover:underline"
+                      >
+                        {page.title}
+                      </a>
+                    </td>
+                    <td className="p-3 border">
+                      <a
+                        href={`https://wiki.backroomszh.org/Status:${encodeURIComponent(page.title)}`}
+                        target="_blank"
+                        className="text-purple-600 hover:underline"
+                      >
+                        Status:{page.title}
+                      </a>
+                    </td>
+                    <td className="p-3 border">
+                      <span className="text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded text-sm">
+                        待审核
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* 未审核重定向页面（新增） */}
+      <section className="mb-10">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold text-teal-800">
+            ↪️ 未审核重定向页面
+          </h2>
+          <span className="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm">
+            共 {data.unreviewedRedirects.length} 个
+          </span>
+        </div>
+        {data.unreviewedRedirects.length === 0 ? (
+          <p className="text-gray-500">暂无未审核重定向页面 🎉</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse bg-white shadow rounded-lg">
+              <thead className="bg-teal-50">
+                <tr>
+                  <th className="text-left p-3 border">重定向页面</th>
+                  <th className="text-left p-3 border">Status 页面</th>
+                  <th className="text-left p-3 border">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.unreviewedRedirects.map((page) => (
+                  <tr key={page.pageid} className="hover:bg-gray-50">
+                    <td className="p-3 border">
+                      <a
+                        href={`https://wiki.backroomszh.org/${encodeURIComponent(page.title)}?redirect=no`}
+                        target="_blank"
+                        className="text-teal-700 hover:underline"
                       >
                         {page.title}
                       </a>
@@ -285,7 +366,9 @@ export default function Home() {
       {/* 需要进一步审核 */}
       <section className="mb-10">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold text-amber-800">🔍 需要进一步审核</h2>
+          <h2 className="text-2xl font-semibold text-amber-800">
+            🔍 需要进一步审核
+          </h2>
           <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm">
             共 {data.pending.length} 个
           </span>
@@ -327,9 +410,7 @@ export default function Home() {
                     <td className="p-3 border text-sm text-gray-600">
                       {new Date(page.statusTimestamp).toLocaleString('zh-CN')}
                     </td>
-                    <td className="p-3 border">
-                      {getNoteLabel(page.note)}
-                    </td>
+                    <td className="p-3 border">{getNoteLabel(page.note)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -341,7 +422,9 @@ export default function Home() {
       {/* 孤立 Status 页面 */}
       <section className="mb-10">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold text-purple-800">👻 孤立 Status 页面</h2>
+          <h2 className="text-2xl font-semibold text-purple-800">
+            👻 孤立 Status 页面
+          </h2>
           <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
             共 {data.orphanedStatus.length} 个
           </span>
