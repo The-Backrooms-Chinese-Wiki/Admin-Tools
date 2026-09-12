@@ -18,14 +18,15 @@ interface FailedPageInfo {
 
 interface PendingPageInfo {
   pageid: number;
-  title: string;             // Status 页面标题
-  mainTitle: string;        // 主文章标题
-  statusTimestamp: string;  // Status 页面最后修改时间
-  note: string;             // Pending 模板的 note 参数值
+  title: string;
+  mainTitle: string;
+  statusTimestamp: string;
+  note: string;
 }
 
 interface AuditResult {
   unreviewed: PageInfo[];
+  unreviewedRedirects: PageInfo[];  // 新增
   failed: FailedPageInfo[];
   orphanedStatus: PageInfo[];
   pending: PendingPageInfo[];
@@ -35,8 +36,11 @@ const API_BASE = 'https://mirror.backroomszh.org/w/api.php';
 const STATUS_NS = 5508;
 const MAIN_NS = 0;
 
-// 1. 获取指定命名空间的所有非重定向页面
-async function fetchAllNonRedirectPages(namespace: number): Promise<PageInfo[]> {
+// 通用：按过滤器获取命名空间内所有页面
+async function fetchPagesByFilter(
+  namespace: number,
+  filter: 'redirects' | 'nonredirects' | 'all'
+): Promise<PageInfo[]> {
   let pages: PageInfo[] = [];
   let apcontinue: string | null = null;
 
@@ -46,11 +50,13 @@ async function fetchAllNonRedirectPages(namespace: number): Promise<PageInfo[]> 
       list: 'allpages',
       apnamespace: String(namespace),
       aplimit: 'max',
-      apfilterredir: 'nonredirects',
       format: 'json',
       maxage: '0',
       smaxage: '0',
     });
+    if (filter !== 'all') {
+      params.append('apfilterredir', filter);
+    }
     if (apcontinue) params.append('apcontinue', apcontinue);
 
     const res = await fetch(`${API_BASE}?${params.toString()}`, {
@@ -68,7 +74,17 @@ async function fetchAllNonRedirectPages(namespace: number): Promise<PageInfo[]> 
   return pages;
 }
 
-// 2. 从页面列表中排除重定向
+// 1. 获取指定命名空间的所有非重定向页面
+function fetchAllNonRedirectPages(namespace: number): Promise<PageInfo[]> {
+  return fetchPagesByFilter(namespace, 'nonredirects');
+}
+
+// 2. 获取指定命名空间的所有重定向页面
+function fetchAllRedirectPages(namespace: number): Promise<PageInfo[]> {
+  return fetchPagesByFilter(namespace, 'redirects');
+}
+
+// 3. 从页面列表中排除重定向（用于 Status 命名空间）
 async function filterOutRedirects(pages: PageInfo[]): Promise<PageInfo[]> {
   if (pages.length === 0) return [];
 
@@ -109,7 +125,7 @@ async function filterOutRedirects(pages: PageInfo[]): Promise<PageInfo[]> {
   return nonRedirects;
 }
 
-// 3. 获取未过审页面（含主文章最后编辑时间）
+// 4. 获取未过审页面（含主文章最后编辑时间）
 async function fetchFailedPages(): Promise<FailedPageInfo[]> {
   const rawFailed: { pageid: number; title: string; timestamp: string }[] = [];
   let gcmcontinue: string | null = null;
@@ -173,14 +189,12 @@ async function fetchFailedPages(): Promise<FailedPageInfo[]> {
 
     if (data.query?.pages) {
       for (const [, page] of Object.entries(data.query.pages) as any) {
-        const title = page.title;
-        const timestamp = page.revisions?.[0]?.timestamp ?? null;
-        mainTimestamps.set(title, timestamp);
+        mainTimestamps.set(page.title, page.revisions?.[0]?.timestamp ?? null);
       }
     }
   }
 
-  const failed: FailedPageInfo[] = rawFailed.map(item => {
+  return rawFailed.map(item => {
     const mainTitle = item.title.replace(/^Status:/, '');
     return {
       pageid: item.pageid,
@@ -190,11 +204,9 @@ async function fetchFailedPages(): Promise<FailedPageInfo[]> {
       mainTimestamp: mainTimestamps.get(mainTitle) ?? null,
     };
   });
-
-  return failed;
 }
 
-// 4. 从 wikitext 中提取 Pending 模板的 note 参数
+// 5. 提取 Pending 模板的 note 参数
 function extractPendingNote(wikitext: string): string {
   const templateRegex = /\{\{\s*Pending\s*([^}]*)\}\}/i;
   const match = wikitext.match(templateRegex);
@@ -205,9 +217,8 @@ function extractPendingNote(wikitext: string): string {
   return noteMatch ? noteMatch[1].trim() : '';
 }
 
-// 5. 获取需要进一步审核的页面（包含 {{Pending}} 模板）
+// 6. 获取需要进一步审核的页面
 async function fetchPendingPages(): Promise<PendingPageInfo[]> {
-  // 第一步：获取所有嵌入 Template:Pending 的 Status 页面标题
   const titles: { pageid: number; title: string }[] = [];
   let geicontinue: string | null = null;
 
@@ -242,7 +253,6 @@ async function fetchPendingPages(): Promise<PendingPageInfo[]> {
 
   if (titles.length === 0) return [];
 
-  // 第二步：分批获取每个页面的 wikitext 和最后修改时间
   const pending: PendingPageInfo[] = [];
 
   for (let i = 0; i < titles.length; i += 50) {
@@ -270,13 +280,12 @@ async function fetchPendingPages(): Promise<PendingPageInfo[]> {
         const pageid = page.pageid;
         const timestamp = page.revisions?.[0]?.timestamp ?? '';
         const content = page.revisions?.[0]?.content ?? '';
-        const note = extractPendingNote(content);
         pending.push({
           pageid,
           title,
           mainTitle: title.slice(7),
           statusTimestamp: timestamp,
-          note,
+          note: extractPendingNote(content),
         });
       }
     }
@@ -285,40 +294,18 @@ async function fetchPendingPages(): Promise<PendingPageInfo[]> {
   return pending;
 }
 
-// 主 API 处理函数
+// 主处理函数
 export async function GET() {
   try {
-    const mainPages = await fetchAllNonRedirectPages(MAIN_NS);
-
-    // 获取 Status 命名空间页面（过滤重定向）
-    let statusPagesAll: PageInfo[] = [];
-    let apcontinue: string | null = null;
-    do {
-      const params = new URLSearchParams({
-        action: 'query',
-        list: 'allpages',
-        apnamespace: String(STATUS_NS),
-        aplimit: 'max',
-        format: 'json',
-        maxage: '0',
-        smaxage: '0',
-      });
-      if (apcontinue) params.append('apcontinue', apcontinue);
-
-      const res = await fetch(`${API_BASE}?${params.toString()}`, {
-        cache: 'no-store',
-      });
-      if (!res.ok) throw new Error(`Status 命名空间 API 请求失败: ${res.status}`);
-      const data = await res.json();
-      if (data.query?.allpages) {
-        statusPagesAll = statusPagesAll.concat(data.query.allpages);
-      }
-      apcontinue = data.continue?.apcontinue ?? null;
-    } while (apcontinue);
+    // 并行获取主命名空间的非重定向页面、重定向页面，以及所有 Status 页面
+    const [mainPages, mainRedirects, statusPagesAll] = await Promise.all([
+      fetchAllNonRedirectPages(MAIN_NS),
+      fetchAllRedirectPages(MAIN_NS),
+      fetchPagesByFilter(STATUS_NS, 'all'),
+    ]);
 
     const statusPages = await filterOutRedirects(statusPagesAll);
 
-    // 并发获取未过审和待进一步审核的页面
     const [failedPages, pendingPages] = await Promise.all([
       fetchFailedPages(),
       fetchPendingPages(),
@@ -332,9 +319,18 @@ export async function GET() {
       }
     }
 
+    // 已存在 Status 页面对应的主标题集合（重定向和非重定向共用）
     const reviewedMainTitles = new Set(statusTitleToMain.values());
+
+    // 未审核：非重定向主页面中没有对应 Status
     const unreviewed = mainPages.filter(p => !reviewedMainTitles.has(p.title));
 
+    // 新增：未审核重定向页面：主命名空间中的重定向页没有对应 Status
+    const unreviewedRedirects = mainRedirects.filter(
+      p => !reviewedMainTitles.has(p.title)
+    );
+
+    // 孤立 Status
     const orphanedStatus = statusPages.filter(sp => {
       const mainTitle = statusTitleToMain.get(sp.title);
       return mainTitle && !mainTitles.has(mainTitle);
@@ -343,6 +339,7 @@ export async function GET() {
     return NextResponse.json(
       {
         unreviewed,
+        unreviewedRedirects,
         failed: failedPages,
         orphanedStatus,
         pending: pendingPages,
