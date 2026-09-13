@@ -26,7 +26,7 @@ interface PendingPageInfo {
 
 interface AuditResult {
   unreviewed: PageInfo[];
-  unreviewedRedirects: PageInfo[];  // 新增
+  unreviewedRedirects: PageInfo[];
   failed: FailedPageInfo[];
   orphanedStatus: PageInfo[];
   pending: PendingPageInfo[];
@@ -297,7 +297,7 @@ async function fetchPendingPages(): Promise<PendingPageInfo[]> {
 // 主处理函数
 export async function GET() {
   try {
-    // 并行获取主命名空间的非重定向页面、重定向页面，以及所有 Status 页面
+    // 并行获取：主命名空间非重定向页、重定向页，以及所有 Status 页面
     const [mainPages, mainRedirects, statusPagesAll] = await Promise.all([
       fetchAllNonRedirectPages(MAIN_NS),
       fetchAllRedirectPages(MAIN_NS),
@@ -311,7 +311,14 @@ export async function GET() {
       fetchPendingPages(),
     ]);
 
+    // 非重定向主页面的标题集合（用于未审核判断）
     const mainTitles = new Set(mainPages.map(p => p.title));
+
+    // 主命名空间中所有页面（含重定向）的标题集合（用于孤立判断）
+    const allMainTitles = new Set(
+      [...mainPages, ...mainRedirects].map(p => p.title)
+    );
+
     const statusTitleToMain = new Map<string, string>();
     for (const sp of statusPages) {
       if (sp.title.startsWith('Status:')) {
@@ -319,21 +326,20 @@ export async function GET() {
       }
     }
 
-    // 已存在 Status 页面对应的主标题集合（重定向和非重定向共用）
     const reviewedMainTitles = new Set(statusTitleToMain.values());
 
-    // 未审核：非重定向主页面中没有对应 Status
+    // 未审核：非重定向主页面中，没有对应 Status 页面
     const unreviewed = mainPages.filter(p => !reviewedMainTitles.has(p.title));
 
-    // 新增：未审核重定向页面：主命名空间中的重定向页没有对应 Status
+    // 未审核重定向：主命名空间中的重定向页，没有对应 Status 页面
     const unreviewedRedirects = mainRedirects.filter(
       p => !reviewedMainTitles.has(p.title)
     );
 
-    // 孤立 Status
+    // 孤立 Status：Status 页面存在，但其对应主页面（无论是否为重定向）都不存在
     const orphanedStatus = statusPages.filter(sp => {
       const mainTitle = statusTitleToMain.get(sp.title);
-      return mainTitle && !mainTitles.has(mainTitle);
+      return mainTitle && !allMainTitles.has(mainTitle);
     });
 
     return NextResponse.json(
